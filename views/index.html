@@ -19,7 +19,8 @@
 <script>
     let data = [];
     window.WebSocket = window.WebSocket || window.MozWebSocket;
-    const connection = new WebSocket('ws://' + location.host);
+	const protocol =  window.location.protocol === 'https:' ? 'wss' : 'ws',
+    const connection = new WebSocket( protocol + '://' + location.host);
     connection.onopen = function () {
         // connection is opened and ready to use
     };
