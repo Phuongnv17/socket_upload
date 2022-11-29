@@ -95,7 +95,7 @@ const wsServer = new webSocketServer({
     // http://tools.ietf.org/html/rfc6455#page-6
     httpServer: server,
     maxReceivedFrameSize: 1000000,
-    maxReceivedMessageSize:1500000
+    maxReceivedMessageSize: 1500000
 });
 // This callback function is called every time someone
 // tries to connect to the WebSocket server
@@ -116,10 +116,15 @@ wsServer.on('request', function (request) {
 
     // user sent some message
     connection.on('message', function (message) {
+        let found = false;
         for (const client of clients) {
             if (client !== connection) {
                 client.send(JSON.stringify(message));
+                found = true;
             }
+        }
+        if (!found) {
+            connection.close();
         }
     });
     // user disconnected
