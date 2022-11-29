@@ -7,6 +7,9 @@
     <title>Document</title>
 </head>
 <body>
+<button  id="connect" onclick="openSocket()" name="submit">Open socket</button>
+<br/>
+<hr/>
 <div id="upload">
     <input type="file" name="file" id="file">
     <button onclick="doUpload()" name="submit">Upload File</button>
@@ -18,56 +21,63 @@
 </div>
 <script>
     let data = [];
-    window.WebSocket = window.WebSocket || window.MozWebSocket;
-    const connection = new WebSocket('ws://' + location.host);
-    connection.onopen = function () {
-        // connection is opened and ready to use
-    };
-    connection.onerror = function (error) {
-        // an error occurred when sending/receiving data
-    };
-    let fileInfo;
+	let fileInfo;
     let fileReceiver = [];
     let uId;
     let page = 1;
-    connection.onmessage = function (message) {
-        // try to decode json (I assume that each message
-        // from server is json)
-        const request = JSON.parse(message.data);
+	let connection;
+	function openSocket(){
+	    window.WebSocket = window.WebSocket || window.MozWebSocket;
+		const protocol =  window.location.protocol === 'https:' ? 'wss' : 'ws';
+		connection = new WebSocket( protocol + '://' + location.host);
+		document.getElementById("connect").style.setProperty('display', 'none');
+		connection.onopen = function () {
+			// connection is opened and ready to use
+		};
+		connection.onerror = function (error) {
+			// an error occurred when sending/receiving data
+		};
 
-        if (!request.utf8Data) {
-            fileReceiver.push(request.binaryData.data);
-            document.querySelector("#receiver .file-byte-receiver").innerHTML =
-                `${request.binaryData.data.length * fileReceiver.length} / ${fileInfo.size} (${Math.ceil(request.binaryData.data.length * fileReceiver.length * 100 / fileInfo.size)}%)`;
+		connection.onmessage = function (message) {
+			// try to decode json (I assume that each message
+			// from server is json)
+			const request = JSON.parse(message.data);
 
-        } else {
-            const current = JSON.parse(request.utf8Data);
-            if (current.action === 'SEND_FILE') {
-                fileInfo = current;
-                document.getElementById("upload").style.setProperty('display', 'none');
-                document.querySelector("#receiver .file-name").innerHTML = current.file;
-                document.querySelector("#receiver .file-size").innerHTML = current.size;
-                document.querySelector("#receiver .file-byte-receiver").innerHTML = '0';
-                document.getElementById("receiver").style.setProperty('display', 'block');
-                connection.send(JSON.stringify({
-                    action: 'RECEIVER_FILE'
-                }));
+			if (!request.utf8Data) {
+				fileReceiver.push(request.binaryData.data);
+				document.querySelector("#receiver .file-byte-receiver").innerHTML =
+					`${request.binaryData.data.length * fileReceiver.length} / ${fileInfo.size} (${Math.ceil(request.binaryData.data.length * fileReceiver.length * 100 / fileInfo.size)}%)`;
 
-            } else if (current.action === 'RECEIVER_FILE') {
-                page = 1;
-                sendByte(1);
+			} else {
+				const current = JSON.parse(request.utf8Data);
+				if (current.action === 'SEND_FILE') {
+					fileInfo = current;
+					document.getElementById("upload").style.setProperty('display', 'none');
+					document.querySelector("#receiver .file-name").innerHTML = current.file;
+					document.querySelector("#receiver .file-size").innerHTML = current.size;
+					document.querySelector("#receiver .file-byte-receiver").innerHTML = '0';
+					document.getElementById("receiver").style.setProperty('display', 'block');
+					connection.send(JSON.stringify({
+						action: 'RECEIVER_FILE'
+					}));
 
-            } else if (current.action === 'SEND_DATA' && current.id === uId) {
+				} else if (current.action === 'RECEIVER_FILE') {
+					page = 1;
+					sendByte(1);
 
-            } else if (current.action === 'SENT' && current.id === uId) {
-                document.querySelector("#receiver .file-byte-receiver").innerHTML =
-                    `${fileInfo.size} / ${fileInfo.size} (100%)`;
+				} else if (current.action === 'SEND_DATA' && current.id === uId) {
 
-                downloadBlob(concat(fileReceiver).buffer, fileInfo.file, fileInfo.type)
-                fileReceiver = []
-            }
-        }
-    };
+				} else if (current.action === 'SENT' && current.id === uId) {
+					document.querySelector("#receiver .file-byte-receiver").innerHTML =
+						`${fileInfo.size} / ${fileInfo.size} (100%)`;
+
+					downloadBlob(concat(fileReceiver).buffer, fileInfo.file, fileInfo.type)
+					fileReceiver = []
+				}
+			}
+		};
+
+	}
 
     function paginate(array, page_size, page_number) {
 
