@@ -1,0 +1,165 @@
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport"
+          content="width=device-width, user-scalable=no, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <title>Document</title>
+</head>
+<body>
+<div id="upload">
+    <input type="file" name="file" id="file">
+    <button onclick="doUpload()" name="submit">Upload File</button>
+</div>
+<div id="receiver" style="display: none">
+    <p class="file-name"></p>
+    <p class="file-size"></p>
+    <p class="file-byte-receiver"></p>
+</div>
+<script>
+    let data = [];
+    window.WebSocket = window.WebSocket || window.MozWebSocket;
+    const connection = new WebSocket('ws://' + location.host);
+    connection.onopen = function () {
+        // connection is opened and ready to use
+    };
+    connection.onerror = function (error) {
+        // an error occurred when sending/receiving data
+    };
+    let fileInfo;
+    let fileReceiver = [];
+    let uId;
+    let page = 1;
+    connection.onmessage = function (message) {
+        // try to decode json (I assume that each message
+        // from server is json)
+        const request = JSON.parse(message.data);
+
+        if (!request.utf8Data) {
+            fileReceiver.push(request.binaryData.data);
+            document.querySelector("#receiver .file-byte-receiver").innerHTML =
+                `${request.binaryData.data.length * fileReceiver.length} / ${fileInfo.size} (${Math.ceil(request.binaryData.data.length * fileReceiver.length * 100 / fileInfo.size)}%)`;
+
+        } else {
+            const current = JSON.parse(request.utf8Data);
+            if (current.action === 'SEND_FILE') {
+                fileInfo = current;
+                document.getElementById("upload").style.setProperty('display', 'none');
+                document.querySelector("#receiver .file-name").innerHTML = current.file;
+                document.querySelector("#receiver .file-size").innerHTML = current.size;
+                document.querySelector("#receiver .file-byte-receiver").innerHTML = '0';
+                document.getElementById("receiver").style.setProperty('display', 'block');
+                connection.send(JSON.stringify({
+                    action: 'RECEIVER_FILE'
+                }));
+
+            } else if (current.action === 'RECEIVER_FILE') {
+                page = 1;
+                sendByte(1);
+
+            } else if (current.action === 'SEND_DATA' && current.id === uId) {
+
+            } else if (current.action === 'SENT' && current.id === uId) {
+                document.querySelector("#receiver .file-byte-receiver").innerHTML =
+                    `${fileInfo.size} / ${fileInfo.size} (100%)`;
+
+                downloadBlob(concat(fileReceiver).buffer, fileInfo.file, fileInfo.type)
+                fileReceiver = []
+            }
+        }
+    };
+
+    function paginate(array, page_size, page_number) {
+
+        // human-readable page numbers usually start with 1, so we reduce 1 in the first argument
+        return array.slice((page_number - 1) * page_size, page_number * page_size);
+    }
+
+    function doUpload() {
+        let data = document.getElementById("file").files[0];
+        read(data)
+
+
+    }
+
+    async function read(file) {
+        // Read the file as ArrayBuffer to handle binary data
+        data = new Uint8Array(await file.arrayBuffer());
+
+        connection.send(JSON.stringify({
+            file: file.name,
+            action: 'SEND_FILE',
+            size: file.size,
+            type: file.type
+        }))
+
+    }
+
+    function sendByte(page) {
+        let size = paginate(data, 500000, page);
+        if (size <= 0) {
+            connection.send(JSON.stringify({
+                action: 'SENT'
+            }));
+            return;
+        }
+        connection.send(size);
+        setTimeout(s => {
+            sendByte(page + 1)
+        }, 100)
+    }
+
+    function uuid() {
+        const buf = new Uint32Array(4);
+        window.crypto.getRandomValues(buf);
+        let idx = -1;
+        return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
+            idx++;
+            const r = (buf[idx >> 3] >> ((idx % 8) * 4)) & 15;
+            const v = c === 'x' ? r : (r & 0x3 | 0x8);
+            return v.toString(16);
+        });
+    }
+
+
+    function downloadBlob(data, fileName, mimeType) {
+        let blob, url;
+        blob = new Blob([data], {
+            type: mimeType
+        });
+
+        url = window.URL.createObjectURL(blob);
+        downloadURL(url, fileName);
+        setTimeout(function () {
+            return window.URL.revokeObjectURL(url);
+        }, 1000);
+    }
+
+    function downloadURL(data, fileName) {
+        let a;
+        a = document.createElement('a');
+        a.href = data;
+        a.download = fileName;
+        document.body.appendChild(a);
+        a.style.display = 'none';
+        a.click();
+        a.remove();
+    }
+
+    function concat (views) {
+        let length = 0
+        for (const v of views)
+            length += v.length
+
+        let buf = new Uint8Array(length)
+        let offset = 0
+        for (const v of views) {
+            buf.set(Uint8Array.from(v), offset)
+
+            offset += v.length
+        }
+        return buf
+    }
+</script>
+</body>
+</html>

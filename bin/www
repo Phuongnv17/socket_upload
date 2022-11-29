@@ -1,0 +1,138 @@
+#!/usr/bin/env node
+
+/**
+ * Module dependencies.
+ */
+const app = require('../app');
+const debug = require('debug')('socket-server:server');
+const http = require('http');
+const {server: webSocketServer} = require("websocket");
+
+/**
+ * Get port from environment and store in Express.
+ */
+const port = normalizePort(process.env.PORT || '3000');
+app.set('port', port);
+
+/**
+ * Create HTTP server.
+ */
+const server = http.createServer(app);
+
+/**
+ * Listen on provided port, on all network interfaces.
+ */
+
+
+// Also mount the app here
+server.on('request', app);
+server.listen(port);
+server.on('error', onError);
+server.on('listening', onListening);
+
+/**
+ * Normalize a port into a number, string, or false.
+ */
+
+function normalizePort(val) {
+    const port = parseInt(val, 10);
+
+    if (isNaN(port)) {
+        // named pipe
+        return val;
+    }
+
+    if (port >= 0) {
+        // port number
+        return port;
+    }
+
+    return false;
+}
+
+/**
+ * Event listener for HTTP server "error" event.
+ */
+
+function onError(error) {
+    if (error.syscall !== 'listen') {
+        throw error;
+    }
+
+    const bind = typeof port === 'string'
+        ? 'Pipe ' + port
+        : 'Port ' + port;
+
+    // handle specific listen errors with friendly messages
+    switch (error.code) {
+        case 'EACCES':
+            console.error(bind + ' requires elevated privileges');
+            process.exit(1);
+            break;
+        case 'EADDRINUSE':
+            console.error(bind + ' is already in use');
+            process.exit(1);
+            break;
+        default:
+            throw error;
+    }
+}
+
+/**
+ * Event listener for HTTP server "listening" event.
+ */
+
+function onListening() {
+    const addr = server.address();
+    const bind = typeof addr === 'string'
+        ? 'pipe ' + addr
+        : 'port ' + addr.port;
+    debug('Listening on ' + bind);
+}
+
+const clients = [];
+/**
+ * WebSocket server
+ */
+const wsServer = new webSocketServer({
+    // WebSocket server is tied to a HTTP server. WebSocket
+    // request is just an enhanced HTTP request. For more info
+    // http://tools.ietf.org/html/rfc6455#page-6
+    httpServer: server,
+    maxReceivedFrameSize: 1000000,
+    maxReceivedMessageSize:1500000
+});
+// This callback function is called every time someone
+// tries to connect to the WebSocket server
+const connectClients = {};
+wsServer.on('request', function (request) {
+    console.log((new Date()) + ' Connection from origin '
+        + request.origin + '.');
+    // accept connection - you should check 'request.origin' to
+    // make sure that client is connecting from your website
+    // (http://en.wikipedia.org/wiki/Same_origin_policy)
+    const connection = request.accept(null, request.origin);
+    // we need to know client index to remove them on 'close' event
+    clients.push(connection);
+    // let userName = false;
+    // let userColor = false;
+    console.log((new Date()) + ' Connection accepted.');
+    // send back chat history
+
+    // user sent some message
+    connection.on('message', function (message) {
+        for (const client of clients) {
+            if (client !== connection) {
+                client.send(JSON.stringify(message));
+            }
+        }
+    });
+    // user disconnected
+    connection.on('close', function (connectionId) {
+        const index = clients.indexOf(connection);
+        if (index >= 0) {
+            console.log('Close: ', index)
+            clients.splice(index, 1);
+        }
+    });
+});
