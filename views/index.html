@@ -59,12 +59,13 @@
         // from server is json)
 
         const request = JSON.parse(message.data);
-
         if (!request.utf8Data) {
             fileReceiver.push(request.binaryData.data);
             document.querySelector("#receiver .file-byte-receiver").innerHTML =
                 `${request.binaryData.data.length * fileReceiver.length} / ${fileInfo.size} (${Math.ceil(request.binaryData.data.length * fileReceiver.length * 100 / fileInfo.size)}%)`;
-
+            connection.send(JSON.stringify({
+                action: 'NEXT_PAGE'
+            }));
         } else {
             const current = JSON.parse(request.utf8Data);
             if (current.action === 'SEND_FILE') {
@@ -82,10 +83,11 @@
                 page = 1;
                 document.getElementById("sending").style.setProperty('display', 'block');
                 document.getElementById("upload").style.setProperty('display', 'none');
-                sendByte(1);
+                sendByte(page);
 
-            } else if (current.action === 'SEND_DATA' && current.id === uId) {
-
+            } else if (current.action === 'NEXT_PAGE' && current.id === uId) {
+                page++;
+                sendByte(page);
             } else if (current.action === 'SENT' && current.id === uId) {
                 document.querySelector("#receiver .file-byte-receiver").innerHTML =
                     `${fileInfo.size} / ${fileInfo.size} (100%)`;
@@ -141,9 +143,6 @@
             return;
         }
         connection.send(size);
-        setTimeout(s => {
-            sendByte(page + 1)
-        }, 100)
     }
 
     function uuid() {
