@@ -23,6 +23,7 @@
     <p class="file-name"></p>
     <p class="file-size"></p>
     <p class="file-byte-receiver"></p>
+    <p class="file-skip"></p>
 </div>
 <script>
     let data = [];
@@ -33,7 +34,13 @@
     let connection;
 
     function cancelSocket() {
+        document.getElementById("sending").style.setProperty('display', 'none');
+        document.getElementById("upload").style.setProperty('display', 'block');
         if (!connection) return;
+        document.getElementById("connect").style.setProperty('display', 'block');
+        connection.send(JSON.stringify({
+            action: 'SKIP'
+        }));
         connection.close();
     }
 
@@ -52,6 +59,9 @@
     };
     connection.onclose = function (state) {
         console.log('close');
+        document.getElementById("sending").style.setProperty('display', 'none');
+        document.getElementById("sending").style.setProperty('display', 'none');
+        document.getElementById("upload").style.setProperty('display', 'block');
         document.getElementById("connect").style.setProperty('display', 'block');
     };
     connection.onmessage = function (message) {
@@ -73,7 +83,8 @@
                 document.getElementById("upload").style.setProperty('display', 'none');
                 document.querySelector("#receiver .file-name").innerHTML = current.file;
                 document.querySelector("#receiver .file-size").innerHTML = current.size;
-                document.querySelector("#receiver .file-byte-receiver").innerHTML = '0';
+                document.querySelector("#receiver .file-byte-receiver").innerHTML = `0/${current.size}(0%)`;
+                document.querySelector("#receiver .file-skip").innerHTML = ``;
                 document.getElementById("receiver").style.setProperty('display', 'block');
                 connection.send(JSON.stringify({
                     action: 'RECEIVER_FILE'
@@ -85,15 +96,19 @@
                 document.getElementById("upload").style.setProperty('display', 'none');
                 sendByte(page);
 
-            } else if (current.action === 'NEXT_PAGE' && current.id === uId) {
+            } else if (current.action === 'NEXT_PAGE') {
                 page++;
                 sendByte(page);
-            } else if (current.action === 'SENT' && current.id === uId) {
+            } else if (current.action === 'SENT') {
                 document.querySelector("#receiver .file-byte-receiver").innerHTML =
                     `${fileInfo.size} / ${fileInfo.size} (100%)`;
 
                 downloadBlob(concat(fileReceiver).buffer, fileInfo.file, fileInfo.type)
                 fileReceiver = []
+            } else if (current.action === 'SKIP') {
+                document.querySelector("#receiver .file-skip").innerHTML =
+                    `File skip from source!`;
+                fileReceiver = [];
             }
         }
     };
@@ -138,8 +153,6 @@
             connection.send(JSON.stringify({
                 action: 'SENT'
             }));
-            document.getElementById("sending").style.setProperty('display', 'none');
-            document.getElementById("upload").style.setProperty('display', 'block');
             return;
         }
         connection.send(size);
